@@ -1,0 +1,221 @@
+---
+title: "test"
+subtitle: "DATASCI 203: Lab 2"
+author: "Aman Kumar, Ayodele Oyewole, Assaph Aharoni, Gia Nguyen"
+output:
+  bookdown::pdf_document2:
+    toc: true
+    number_sections: true
+date: "2024-03-04"
+---
+
+\newpage
+\setcounter{page}{1}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE)
+options(tinytex.verbose = TRUE)
+```
+
+```{r load packages and set options}
+library(tidyverse)
+library(magrittr)
+library(stats)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(caret)
+
+theme_set(theme_minimal())
+```
+
+```{r load data}
+data <- read.csv('~/lab2/gss2022.csv')
+```
+
+```{r filter columns}
+gss_selected <- data[, c("sibs", "age", "incom16", "reg16", "res16", "pasei10", "masei10", "granborn", "family16")]
+```
+
+```{r check for missing values}
+missing_values_per_column <- colSums(is.na(gss_selected))
+```
+
+```{r check numeric values for numeric columns}
+suppressWarnings({
+  gss_selected$age_num <- as.numeric(gss_selected$age)
+  gss_selected$sibs_num <- as.numeric(gss_selected$sibs)
+  gss_selected$pasei10_num <- as.numeric(gss_selected$pasei10)
+  gss_selected$masei10_num <- as.numeric(gss_selected$masei10)
+})
+
+non_numeric_age_rows <- which(is.na(gss_selected$age_num))
+non_numeric_sibs_rows <- which(is.na(gss_selected$sibs_num))
+non_numeric_pasei10_rows <- which(is.na(gss_selected$pasei10_num))
+non_numeric_masei10_rows <- which(is.na(gss_selected$masei10_num))
+```
+
+```{r get value counts for non numeric rows}
+non_numeric_sibs_values <- gss_selected$sibs[non_numeric_sibs_rows]
+non_numeric_age_values <- gss_selected$age[non_numeric_age_rows]
+non_numeric_pasei10_values <- gss_selected$pasei10[non_numeric_pasei10_rows]
+non_numeric_masei10_values <- gss_selected$masei10[non_numeric_masei10_rows]
+
+sibs_value_counts <- table(non_numeric_sibs_values)
+age_value_counts <- table(non_numeric_age_values)
+pasei10_value_counts <- table(non_numeric_pasei10_values)
+masei10_value_counts <- table(non_numeric_masei10_values)
+```
+
+```{r drop those non numeric counts except for age 89 or older}
+gss_selected$age <- as.character(gss_selected$age)
+gss_selected$age[gss_selected$age == "89 or older"] <- 89
+
+gss_filtered <- subset(gss_selected, !(age %in% c("no answer", "skipped on web")) & !(age == "no answer"))
+gss_filtered$age <- as.numeric(gss_filtered$age)
+```
+
+```{r}
+gss_filtered <- gss_filtered[gss_filtered$family16 == 'both own mother and father', ]
+```
+
+```{r check values for other categorical cols, results="hide"}
+columns <- c("incom16", "reg16", "res16", "granborn")
+
+for (col in columns) {
+  value_counts <- table(gss_filtered[[col]])
+  cat(col, "Value Counts:\n")
+  print(value_counts)
+  cat("\n")
+}
+```
+
+```{r}
+gss_feature <- subset(gss_filtered, !(incom16 %in% c("don't know", "no answer", "skipped on web")) &
+                                      !(reg16 %in% c("don't know", "skipped on web")) &
+                                      !(res16 %in% c("don't know")) &
+                                      !(granborn %in% c("don't know", "skipped on web", "iap", "no answer")) &
+                                      !(pasei10 %in% c("iap")) &
+                                      !(masei10 %in% c("iap")) &
+                                      !(sibs %in% c("no answer", "skipped on web")))
+```
+
+```{r creating var analysis table}
+var_table <- data.frame(
+  Features = c("age", "incom16", "reg16", "res16", "pasei10", "masei10", "granborn", "sibs"),
+  Description = c("Respondent's age", "Likert scale of perception of parent’s income when respondent age 16",
+                  "Respondent's region of residence at age 16", "Respondent's type of place lived in at age 16",
+                  "Respondent's father's socioeconomic index", "Respondent's mother's socioeconomic index", "Number of grandparents born in US",
+                  "Number of siblings respondents have had (including deceased)"
+  ),
+  Data_Manipulations = c("Dropped 'no answer' and 'skipped on web' responses and categorized group '89 or older' as 89 for analysis", 
+                         "Dropped 'don't know,' 'no answer,' and 'skipped on web' responses and assigned numerical values for Likert scale",
+                         "Dropped 'don't know,' and 'skipped on web' responses and applied one-hot encoding",
+                         "Dropped 'don't know' responses and applied one-hot encoding",
+                         "Dropped 'iap' responses",
+                         "Dropped 'iap' responses",
+                         "Dropped 'don't know,' 'iap,' 'no answer,' and 'skipped on web' responses and recode categorical values into numerical",
+                         "Dropped ‘no answer,’ ‘skipped on web’ responses"
+  ),
+  Data_Scale = c("Ratio", "Ordinal", "Binary after one-hot encoding", "Binary after one-hot encoding", "Interval", "Interval", "Ratio", "Ratio")
+)
+
+colnames(var_table) <- c("Variables", "Description", "Data Manipulations", "Data Scale")
+```
+
+```{r var-table}
+kable(var_table, caption = "Variables Analysis", booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  column_spec(1, width = "2cm") %>% 
+  column_spec(2, width = "5cm") %>% 
+  column_spec(3, width = "7cm") %>%
+  column_spec(4, width = "3cm")
+```
+
+After all the data manipulations, Table \@ref(tab:sample-table) shows a summary of the final number of observations. We used this number of observations to partition our data into exploration and validation sets. To do so, we used stratified sampling to split 30% of the observations into the exploration set in order to assist in model construction, and then validated the results on the remaining 70% of the observations. The results presented in this paper come from the validation subset of the data.
+```{r creating observations analysis table}
+observations_table <- data.frame(
+  causes <- c("Start", "Insignificant responses", "Family16 filter"),
+  num_samples <- c("3,544", "1,730", "1,428"),
+  num_remove <- c("N/A", "1,814", "302")
+  )
+
+colnames(observations_table) <- c("Cause",
+                                  "Number of Samples Available for Analysis (after removal for cause)",
+                                  "Removed number samples for cause")
+```
+
+```{r sample-table}
+kable(observations_table, caption = "Observations Analysis", booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position"), font_size = 10) %>%
+  column_spec(1, width = "5cm") %>% 
+  column_spec(2, width = "6cm") %>%  
+  column_spec(3, width = "5cm")
+```
+
+```{r cleaning incom16}
+gss_feature$incom16 <- as.numeric(factor(gss_feature$incom16, levels = c("far below average", "below average", "average", "above average", "far above average"), ordered = TRUE))
+```
+
+```{r cleaning reg16 and applying one-hot encoding}
+gss_feature$reg16 <- gsub(" ", "_", gss_feature$reg16)
+gss_feature$reg16 <- factor(gss_feature$reg16)
+reg16_dummies <- model.matrix(~ reg16 - 1, data = gss_feature)
+gss_feature <- cbind(gss_feature, reg16_dummies[, -1])
+```
+
+```{r cleaning res16 and applying one-hot encoding}
+gss_feature$res16 <- gsub(" ", "_", gss_feature$res16)
+gss_feature$res16 <- factor(gss_feature$res16)
+res16_dummies <- model.matrix(~ res16 - 1, data = gss_feature)
+gss_feature <- cbind(gss_feature, res16_dummies[, -1])
+```
+
+```{r cleaning granborn}
+gss_feature$granborn <- as.character(gss_feature$granborn)
+
+gss_feature$granborn <- ifelse(gss_feature$granborn == "none", "0",
+                           ifelse(gss_feature$granborn == "one", "1",
+                           ifelse(gss_feature$granborn == "two", "2",
+                           ifelse(gss_feature$granborn == "three", "3",
+                           ifelse(gss_feature$granborn == "four", "4", gss_feature$granborn)))))
+
+gss_feature$granborn <- as.numeric(gss_feature$granborn)
+```
+
+```{r round values in pasei10/masei10}
+gss_feature$pasei10 <- as.numeric(gss_feature$pasei10)
+gss_feature$pasei10 <- round(gss_feature$pasei10, 2)
+
+gss_feature$masei10 <- as.numeric(gss_feature$masei10)
+gss_feature$masei10 <- round(gss_feature$masei10, 2)
+```
+
+```{r drop columns}
+columns_to_drop <- c("reg16", "res16", "age_num", "sibs_num", "pasei10_num", "masei10_num", "family16")
+
+# Drop the columns
+gss_feature <- gss_feature[, !(names(gss_feature) %in% columns_to_drop)]
+gss_feature$sibs <- as.numeric(gss_feature$sibs)
+```
+
+```{r split data 30/70}
+set.seed(123)
+train_proportion <- 0.3
+
+train_indices <- createDataPartition(gss_feature$sibs, p = train_proportion, list = FALSE)
+
+# Create exploration set
+exploration_set <- gss_feature[train_indices, ]
+exploration_set$res16large_city <- exploration_set$"res16in_a_large_city_(over_250,000)"
+exploration_set$res16medium_size_city <- exploration_set$"res16in_a_medium-size_city_(50,000-250,000)"
+exploration_set$res16small_city_or_town <- exploration_set$"res16in_a_small_city_or_town_(under_50,000)"
+
+# Create validation set
+validation_set <- gss_feature[-train_indices, ]
+validation_set$res16large_city <- validation_set$"res16in_a_large_city_(over_250,000)"
+validation_set$res16medium_size_city <- validation_set$"res16in_a_medium-size_city_(50,000-250,000)"
+validation_set$res16small_city_or_town <- validation_set$"res16in_a_small_city_or_town_(under_50,000)"
+```
+
+
