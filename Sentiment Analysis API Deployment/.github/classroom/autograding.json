@@ -1,0 +1,54 @@
+{
+  "tests": [
+    {
+      "name": "2_k8s_lab",
+      "setup": "",
+      "run": ". ./inject-environments-from-action.sh && bash 2-k8s-lab.sh",
+      "input": "",
+      "output": "",
+      "comparison": "exact",
+      "timeout": 5,
+      "points": null
+    },
+    {
+      "name": "3_functionality_lab",
+      "setup": "",
+      "run": ". ./inject-environments-from-action.sh && bash 3-functionality-lab.sh",
+      "input": "",
+      "output": "",
+      "comparison": "exact",
+      "timeout": 10,
+      "points": null
+    },
+    {
+      "name": "1_acr_project",
+      "setup": "",
+      "run": "bash 1-acr-project.sh",
+      "input": "",
+      "output": "",
+      "comparison": "exact",
+      "timeout": 5,
+      "points": null
+    },
+    {
+      "name": "2_k8s_project",
+      "setup": "",
+      "run": ". ./inject-environments-from-action.sh && bash 2-k8s-project.sh",
+      "input": "",
+      "output": "",
+      "comparison": "exact",
+      "timeout": 5,
+      "points": null
+    },
+    {
+      "name": "3_functionality_project",
+      "setup": "",
+      "run": ". ./inject-environments-from-action.sh && bash 3-functionality-project.sh",
+      "input": "",
+      "output": "",
+      "comparison": "exact",
+      "timeout": 10,
+      "points": null
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: project-prediction-service
+  namespace: cinnguyenn
+  labels:
+    app: project-prediction-service
+spec:
+  type: LoadBalancer
